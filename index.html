@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discord Invite</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* Enforce a strict black background and white text across the entire page */
+    html, body {
+      background-color: #000000;
+      color: #ffffff;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    @keyframes subtlePulse {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.05);
+      }
+    }
+
+    .bomb-anim {
+      display: inline-block;
+      animation: subtlePulse 2.6s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-black text-white min-h-screen flex flex-col justify-between antialiased selection:bg-white selection:text-black">
+
+  <!-- Top Right Visit Counter -->
+  <header class="w-full flex justify-end p-4 sm:p-6">
+    <div
+      id="visit-counter-badge"
+      aria-label="Site visit count"
+      class="inline-flex items-center gap-2.5 rounded-full border border-white/25 bg-black px-4 py-2 text-xs sm:text-sm font-medium text-white"
+    >
+      <span class="h-2 w-2 rounded-full bg-white" aria-hidden="true"></span>
+      <span class="text-white/75">Visits:</span>
+      <span id="visit-count" class="font-semibold tabular-nums text-white">...</span>
+    </div>
+  </header>
+
+  <!-- Main Centered Content: Bomb Emoji & Discord Invite Button -->
+  <main class="flex-1 flex flex-col items-center justify-center px-6 py-12 text-center">
+    <div class="flex flex-col items-center gap-6 max-w-md w-full">
+      <!-- Bomb Emoji -->
+      <div
+        class="bomb-anim text-7xl sm:text-8xl select-none leading-none"
+        role="img"
+        aria-label="Bomb emoji"
+      >
+        💣
+      </div>
+
+      <!-- Discord Invite Button Directly Under the Bomb Emoji -->
+      <a
+        id="discord-invite-btn"
+        href="https://discord.gg/bDzjn6Yf7Q"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="w-full sm:w-auto inline-flex items-center justify-center gap-3 rounded-xl border border-white bg-transparent px-7 py-4 text-base sm:text-lg font-semibold text-white transition-all duration-200 hover:bg-white hover:text-black active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black"
+      >
+        <span>Join Discord</span>
+        <span aria-hidden="true">→</span>
+      </a>
+    </div>
+  </main>
+
+  <!-- Spacer to keep main content optically centered -->
+  <footer class="p-4 sm:p-6 text-center text-xs text-white/40">
+    <span class="sr-only">Black and white Discord invite page</span>
+  </footer>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, updateDoc, onSnapshot, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const countEl = document.getElementById("visit-count");
+
+    /**
+     * Formats numbers cleanly with commas (e.g., 1,234).
+     */
+    function renderCount(value) {
+      if (!countEl) return;
+      const numeric = Number(value);
+      countEl.textContent = Number.isFinite(numeric) ? numeric.toLocaleString() : "0";
+    }
+
+    /**
+     * Initializes and increments the site visit counter on every load/visit,
+     * including repeat visits from the same user, and listens for live updates.
+     */
+    async function initVisitCounter() {
+      const hasFirebaseConfig =
+        typeof __firebase_config !== "undefined" && Boolean(__firebase_config);
+
+      if (hasFirebaseConfig) {
+        try {
+          const firebaseConfig = JSON.parse(__firebase_config);
+          const appId = typeof __app_id !== "undefined" ? __app_id : "default-app-id";
+          const app = initializeApp(firebaseConfig);
+          const auth = getAuth(app);
+          const db = getFirestore(app);
+
+          // Authenticate first before performing Firestore operations
+          if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } else {
+            await signInAnonymously(auth);
+          }
+
+          if (!auth.currentUser) {
+            renderCount(1);
+            return;
+          }
+
+          const statsDocRef = doc(db, "artifacts", appId, "public", "data", "site_stats", "visits");
+
+          // Subscribe to real-time updates with an error callback
+          onSnapshot(
+            statsDocRef,
+            (snapshot) => {
+              if (snapshot.exists()) {
+                renderCount(snapshot.data()?.total ?? 0);
+              }
+            },
+            (snapErr) => {
+              console.error("Error listening to visit counter:", snapErr);
+            }
+          );
+
+          // Atomically increment on every visit, even for repeat visitors
+          try {
+            await updateDoc(statsDocRef, { total: increment(1) });
+          } catch (updateErr) {
+            await setDoc(statsDocRef, { total: 1 }, { merge: true });
+          }
+          return;
+        } catch (err) {
+          console.error("Error updating visit counter:", err);
+        }
+      }
+
+      // Fallback counter for standalone preview without external config
+      try {
+        const memoryKey = "__bw_discord_site_visits__";
+        const current = Number(window[memoryKey] || 0) + 1;
+        window[memoryKey] = current;
+        renderCount(current);
+      } catch (fallbackErr) {
+        console.error("Fallback counter error:", fallbackErr);
+        renderCount(1);
+      }
+    }
+
+    initVisitCounter();
+  </script>
+</body>
+</html>
