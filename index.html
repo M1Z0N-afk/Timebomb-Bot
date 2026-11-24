@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Discord Invite</title>
+  <title>Timebomb Bot — Paid Roblox Script</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    /* Enforce a strict black background and white text across the entire page */
     html, body {
       background-color: #000000;
       color: #ffffff;
@@ -17,153 +16,763 @@
       margin: 0;
       padding: 0;
       min-height: 100vh;
+      overflow-x: hidden;
     }
 
-    @keyframes subtlePulse {
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    @keyframes bombFloat {
       0%, 100% {
-        transform: scale(1);
+        transform: translateY(0px) scale(1);
       }
       50% {
-        transform: scale(1.05);
+        transform: translateY(-6px) scale(1.04);
       }
     }
 
-    .bomb-anim {
+    @keyframes bombDetonate {
+      0% { transform: scale(1) rotate(0deg); }
+      20% { transform: scale(1.26) rotate(-8deg); }
+      40% { transform: scale(0.92) rotate(8deg); }
+      60% { transform: scale(1.1) rotate(-4deg); }
+      80% { transform: scale(0.98) rotate(2deg); }
+      100% { transform: scale(1) rotate(0deg); }
+    }
+
+    @keyframes coreSpinSlow {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes coreSpinReverse {
+      from { transform: rotate(360deg); }
+      to { transform: rotate(0deg); }
+    }
+
+    @keyframes corePulseGlow {
+      0%, 100% {
+        opacity: 0.75;
+        transform: scale(0.94);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1.08);
+      }
+    }
+
+    @keyframes panelFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .bomb-idle {
       display: inline-block;
-      animation: subtlePulse 2.6s ease-in-out infinite;
+      animation: bombFloat 3s ease-in-out infinite;
+      will-change: transform;
+    }
+
+    .bomb-shake {
+      animation: bombDetonate 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .svg-ring-cw {
+      transform-origin: 64px 72px;
+      animation: coreSpinSlow 24s linear infinite;
+    }
+
+    .svg-ring-ccw {
+      transform-origin: 64px 72px;
+      animation: coreSpinReverse 16s linear infinite;
+    }
+
+    .svg-core-pulse {
+      transform-origin: 64px 72px;
+      animation: corePulseGlow 2s ease-in-out infinite;
+    }
+
+    .tab-panel-animate {
+      animation: panelFadeIn 0.22s ease-out forwards;
+    }
+
+    #cursor-halo {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 70%);
+      border-radius: 9999px;
+      pointer-events: none;
+      z-index: 50;
+      opacity: 0;
+      transform: translate3d(-100px, -100px, 0);
+      transition: opacity 0.25s ease, border-color 0.2s ease;
+      will-change: transform, opacity;
+    }
+
+    #cursor-halo.is-pressed {
+      border-color: rgba(255, 255, 255, 0.75);
+    }
+
+    @media (hover: none), (pointer: coarse) {
+      #cursor-halo {
+        display: none !important;
+      }
     }
   </style>
 </head>
-<body class="bg-black text-white min-h-screen flex flex-col justify-between antialiased selection:bg-white selection:text-black">
+<body class="bg-black text-white min-h-screen flex flex-col justify-between antialiased selection:bg-white selection:text-black relative">
 
-  <!-- Top Right Visit Counter -->
-  <header class="w-full flex justify-end p-4 sm:p-6">
-    <div
-      id="visit-counter-badge"
-      aria-label="Site visit count"
-      class="inline-flex items-center gap-2.5 rounded-full border border-white/25 bg-black px-4 py-2 text-xs sm:text-sm font-medium text-white"
-    >
-      <span class="h-2 w-2 rounded-full bg-white" aria-hidden="true"></span>
-      <span class="text-white/75">Visits:</span>
-      <span id="visit-count" class="font-semibold tabular-nums text-white">...</span>
-    </div>
+  <canvas id="fx-canvas" class="fixed inset-0 w-full h-full pointer-events-none z-0"></canvas>
+
+  <div id="cursor-halo" aria-hidden="true"></div>
+
+  <header class="w-full px-5 pt-6 z-20 flex flex-col items-center gap-4">
+    <nav aria-label="Primary sections" class="inline-flex items-center rounded-lg border border-white/20 bg-black/85 backdrop-blur-md p-1">
+      <button
+        id="tab-overview"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        aria-controls="panel-overview"
+        class="font-mono-code px-5 py-2 text-xs sm:text-sm font-semibold uppercase tracking-wider rounded-md bg-white text-black transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        Overview
+      </button>
+      <button
+        id="tab-prices"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        aria-controls="panel-prices"
+        class="font-mono-code px-5 py-2 text-xs sm:text-sm font-semibold uppercase tracking-wider rounded-md bg-transparent text-white/70 hover:text-white transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      >
+        Prices
+      </button>
+    </nav>
   </header>
 
-  <!-- Main Centered Content: Bomb Emoji & Discord Invite Button -->
-  <main class="flex-1 flex flex-col items-center justify-center px-6 py-12 text-center">
-    <div class="flex flex-col items-center gap-6 max-w-md w-full">
-      <!-- Bomb Emoji -->
-      <div
-        class="bomb-anim text-7xl sm:text-8xl select-none leading-none"
-        role="img"
-        aria-label="Bomb emoji"
-      >
-        💣
+  <main class="relative z-10 flex-1 flex flex-col items-center justify-center px-5 sm:px-6 py-8 text-center">
+
+    <section
+      id="panel-overview"
+      role="tabpanel"
+      aria-labelledby="tab-overview"
+      class="tab-panel-animate flex flex-col items-center max-w-2xl w-full"
+    >
+      <div class="inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/80 backdrop-blur-md px-3.5 py-1.5 mb-5">
+        <span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse" aria-hidden="true"></span>
+        <span class="font-mono-code text-[11px] font-semibold uppercase tracking-[0.2em] text-white/85">Paid Roblox Script</span>
       </div>
 
-      <!-- Discord Invite Button Directly Under the Bomb Emoji -->
-      <a
-        id="discord-invite-btn"
-        href="https://discord.gg/bDzjn6Yf7Q"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="w-full sm:w-auto inline-flex items-center justify-center gap-3 rounded-xl border border-white bg-transparent px-7 py-4 text-base sm:text-lg font-semibold text-white transition-all duration-200 hover:bg-white hover:text-black active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-black"
-      >
-        <span>Join Discord</span>
-        <span aria-hidden="true">→</span>
-      </a>
-    </div>
+      <div class="relative flex items-center justify-center mb-3">
+        <button
+          id="bomb-trigger"
+          type="button"
+          title="Click to detonate"
+          aria-label="Detonate tactical core spark wave"
+          class="group relative p-3 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 transition-transform duration-150 active:scale-95"
+        >
+          <span
+            id="bomb-emoji"
+            class="bomb-idle inline-flex items-center justify-center select-none filter drop-shadow-[0_0_28px_rgba(255,255,255,0.2)]"
+            role="img"
+            aria-hidden="true"
+          >
+            <svg
+              class="w-28 h-28 sm:w-32 sm:h-32 overflow-visible"
+              viewBox="0 0 128 128"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <!-- Outer Tactical Bracket Framing -->
+              <path d="M22 36V26H32" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" stroke-linecap="square" />
+              <path d="M106 36V26H96" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" stroke-linecap="square" />
+              <path d="M22 108V118H32" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" stroke-linecap="square" />
+              <path d="M106 108V118H96" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" stroke-linecap="square" />
+
+              <!-- Detonator Cap & Fuse Assembly -->
+              <rect x="55" y="21" width="18" height="7" rx="1.5" fill="rgba(255,255,255,0.08)" stroke="#ffffff" stroke-width="1.75" />
+              <line x1="60" y1="21" x2="60" y2="28" stroke="rgba(255,255,255,0.45)" stroke-width="1.25" />
+              <line x1="68" y1="21" x2="68" y2="28" stroke="rgba(255,255,255,0.45)" stroke-width="1.25" />
+              <!-- Curved Tactical Fuse Line & Ignition Node -->
+              <path
+                d="M64 21C64 14 70 10 78 11C83 11.5 87 9 90 6"
+                stroke="#ffffff"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-dasharray="2 2.5"
+              />
+              <circle cx="91" cy="5.5" r="2.5" fill="#ffffff" />
+              <circle cx="91" cy="5.5" r="5.5" stroke="rgba(255,255,255,0.45)" stroke-width="1" />
+
+              <!-- Ambient Core Chamber Fill -->
+              <circle cx="64" cy="72" r="44" fill="rgba(255,255,255,0.03)" />
+
+              <!-- Outer Precision Radar/Timer Ring with Tick Marks -->
+              <g class="svg-ring-cw">
+                <circle
+                  cx="64"
+                  cy="72"
+                  r="44"
+                  stroke="rgba(255,255,255,0.85)"
+                  stroke-width="1.75"
+                  stroke-dasharray="14 5 2 5"
+                />
+                <!-- Cardinal & Intercardinal Timer Ticks -->
+                <line x1="64" y1="24" x2="64" y2="30" stroke="#ffffff" stroke-width="2" />
+                <line x1="64" y1="114" x2="64" y2="120" stroke="#ffffff" stroke-width="2" />
+                <line x1="16" y1="72" x2="22" y2="72" stroke="#ffffff" stroke-width="2" />
+                <line x1="106" y1="72" x2="112" y2="72" stroke="#ffffff" stroke-width="2" />
+                <line x1="30.1" y1="38.1" x2="34.3" y2="42.3" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" />
+                <line x1="97.9" y1="38.1" x2="93.7" y2="42.3" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" />
+                <line x1="30.1" y1="105.9" x2="34.3" y2="101.7" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" />
+                <line x1="97.9" y1="105.9" x2="93.7" y2="101.7" stroke="rgba(255,255,255,0.55)" stroke-width="1.5" />
+              </g>
+
+              <!-- Counter-Rotating Inner Containment Ring -->
+              <g class="svg-ring-ccw">
+                <circle
+                  cx="64"
+                  cy="72"
+                  r="33"
+                  stroke="rgba(255,255,255,0.4)"
+                  stroke-width="1.25"
+                  stroke-dasharray="6 4"
+                />
+                <circle cx="64" cy="39" r="1.75" fill="#ffffff" />
+                <circle cx="64" cy="105" r="1.75" fill="#ffffff" />
+                <circle cx="31" cy="72" r="1.75" fill="#ffffff" />
+                <circle cx="97" cy="72" r="1.75" fill="#ffffff" />
+              </g>
+
+              <!-- Static Precision Crosshair Reticle -->
+              <line x1="64" y1="45" x2="64" y2="56" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" />
+              <line x1="64" y1="88" x2="64" y2="99" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" />
+              <line x1="37" y1="72" x2="48" y2="72" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" />
+              <line x1="80" y1="72" x2="91" y2="72" stroke="rgba(255,255,255,0.75)" stroke-width="1.5" stroke-linecap="round" />
+
+              <!-- Inner Core Chamber -->
+              <circle
+                cx="64"
+                cy="72"
+                r="19"
+                fill="rgba(255,255,255,0.06)"
+                stroke="#ffffff"
+                stroke-width="1.75"
+              />
+
+              <!-- Live Subtle Pulsing Inner Reactor Core -->
+              <g class="svg-core-pulse">
+                <circle
+                  cx="64"
+                  cy="72"
+                  r="11"
+                  fill="rgba(255,255,255,0.16)"
+                  stroke="rgba(255,255,255,0.85)"
+                  stroke-width="1.25"
+                />
+                <polygon
+                  points="64,65 71,72 64,79 57,72"
+                  fill="#ffffff"
+                />
+              </g>
+            </svg>
+          </span>
+        </button>
+      </div>
+
+      <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-white uppercase">
+        Timebomb Bot
+      </h1>
+      <p class="mt-3 text-sm sm:text-base text-white/65 max-w-md leading-relaxed">
+        Automated precision script built for Roblox Timebomb games. Purchase license keys, claim instant access, and receive continuous updates in our Discord.
+      </p>
+
+      <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 w-full sm:w-auto">
+        <a
+          id="discord-invite-btn"
+          href="https://discord.gg/bDzjn6Yf7Q"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="group w-full sm:w-auto inline-flex items-center justify-center gap-3 rounded-lg border border-white bg-white px-7 py-3.5 text-sm sm:text-base font-bold text-black transition-colors duration-150 hover:bg-black hover:text-white active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black shadow-[0_0_30px_rgba(255,255,255,0.12)]"
+        >
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          </svg>
+          <span>Join Discord</span>
+          <span aria-hidden="true" class="inline-block transition-transform duration-150 group-hover:translate-x-0.5">→</span>
+        </a>
+
+        <button
+          id="copy-invite-btn"
+          type="button"
+          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-white/25 bg-black/80 backdrop-blur-sm px-5 py-3.5 text-sm sm:text-base font-medium text-white/90 transition-colors duration-150 hover:border-white hover:text-white active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        >
+          <svg id="copy-icon" class="w-4 h-4 shrink-0 text-white/75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <svg id="check-icon" class="w-4 h-4 shrink-0 text-white hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span id="copy-invite-label">Copy Invite</span>
+        </button>
+      </div>
+
+      <div class="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-3 w-full text-left">
+        <div class="rounded-lg border border-white/15 bg-black/80 backdrop-blur-sm p-4 transition-colors duration-150 hover:border-white/45">
+          <div class="font-mono-code text-xs font-bold uppercase tracking-wider text-white">Smart Holding and Passing</div>
+          <p class="mt-1.5 text-xs text-white/60 leading-relaxed">Intelligent timer awareness to hold strategically and pass at the optimal millisecond.</p>
+        </div>
+        <div class="rounded-lg border border-white/15 bg-black/80 backdrop-blur-sm p-4 transition-colors duration-150 hover:border-white/45">
+          <div class="font-mono-code text-xs font-bold uppercase tracking-wider text-white">Best Bot Performance</div>
+          <p class="mt-1.5 text-xs text-white/60 leading-relaxed">Ultra-fast execution, zero frame drops, and accurate target lock in crowded lobbies.</p>
+        </div>
+        <div class="rounded-lg border border-white/15 bg-black/80 backdrop-blur-sm p-4 transition-colors duration-150 hover:border-white/45">
+          <div class="font-mono-code text-xs font-bold uppercase tracking-wider text-white">More Update Pushes</div>
+          <p class="mt-1.5 text-xs text-white/60 leading-relaxed">Frequent feature releases, game patch adaptations, and active developer support.</p>
+        </div>
+      </div>
+    </section>
+
+    <section
+      id="panel-prices"
+      role="tabpanel"
+      aria-labelledby="tab-prices"
+      class="hidden tab-panel-animate flex-col items-center max-w-4xl w-full"
+    >
+      <div class="inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/80 backdrop-blur-md px-3.5 py-1.5 mb-4">
+        <span class="font-mono-code text-[11px] font-semibold uppercase tracking-[0.2em] text-white/85">License Keys</span>
+      </div>
+
+      <h2 class="text-3xl sm:text-4xl font-extrabold tracking-tight text-white uppercase">
+        Timebomb Bot Pricing
+      </h2>
+      <p class="mt-2.5 text-sm sm:text-base text-white/65 max-w-md leading-relaxed">
+        Select a license key duration below. All tiers include full script access and Discord updates.
+      </p>
+
+      <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 w-full text-left">
+        <div class="rounded-lg border border-white/20 bg-black/85 backdrop-blur-sm p-5 flex flex-col justify-between transition-colors duration-150 hover:border-white/55">
+          <div>
+            <div class="font-mono-code text-xs font-semibold uppercase tracking-widest text-white/65">1 Day</div>
+            <div class="font-mono-code mt-2 text-3xl font-bold text-white">$10</div>
+            <div class="mt-3 h-px w-full bg-white/10"></div>
+            <p class="mt-3 text-xs text-white/60 leading-relaxed">24-hour key access. Instant HWID key delivery.</p>
+          </div>
+          <div class="mt-5 font-mono-code text-[11px] uppercase tracking-wider text-white/45">Single Session</div>
+        </div>
+
+        <div class="rounded-lg border border-white/20 bg-black/85 backdrop-blur-sm p-5 flex flex-col justify-between transition-colors duration-150 hover:border-white/55">
+          <div>
+            <div class="font-mono-code text-xs font-semibold uppercase tracking-widest text-white/65">1 Week</div>
+            <div class="font-mono-code mt-2 text-3xl font-bold text-white">$15</div>
+            <div class="mt-3 h-px w-full bg-white/10"></div>
+            <p class="mt-3 text-xs text-white/60 leading-relaxed">7-day key access. Instant HWID key delivery.</p>
+          </div>
+          <div class="mt-5 font-mono-code text-[11px] uppercase tracking-wider text-white/45">Weekly Pass</div>
+        </div>
+
+        <div class="rounded-lg border border-white/20 bg-black/85 backdrop-blur-sm p-5 flex flex-col justify-between transition-colors duration-150 hover:border-white/55">
+          <div>
+            <div class="font-mono-code text-xs font-semibold uppercase tracking-widest text-white/65">1 Month</div>
+            <div class="font-mono-code mt-2 text-3xl font-bold text-white">$20</div>
+            <div class="mt-3 h-px w-full bg-white/10"></div>
+            <p class="mt-3 text-xs text-white/60 leading-relaxed">30-day key access. Instant HWID key delivery.</p>
+          </div>
+          <div class="mt-5 font-mono-code text-[11px] uppercase tracking-wider text-white/45">Monthly Pass</div>
+        </div>
+
+        <div class="rounded-lg border border-white/20 bg-black/85 backdrop-blur-sm p-5 flex flex-col justify-between transition-colors duration-150 hover:border-white/55">
+          <div>
+            <div class="font-mono-code text-xs font-semibold uppercase tracking-widest text-white/65">1 Year</div>
+            <div class="font-mono-code mt-2 text-3xl font-bold text-white">$25</div>
+            <div class="mt-3 h-px w-full bg-white/10"></div>
+            <p class="mt-3 text-xs text-white/60 leading-relaxed">365-day key access. Instant HWID key delivery.</p>
+          </div>
+          <div class="mt-5 font-mono-code text-[11px] uppercase tracking-wider text-white/45">Annual Pass</div>
+        </div>
+
+        <div class="relative rounded-lg border-2 border-white bg-black/95 backdrop-blur-sm p-5 flex flex-col justify-between shadow-[0_0_30px_rgba(255,255,255,0.12)] sm:col-span-2 lg:col-span-1">
+          <div>
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-mono-code text-xs font-bold uppercase tracking-widest text-white">Lifetime</span>
+              <span class="font-mono-code rounded bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-black">Best Value</span>
+            </div>
+            <div class="font-mono-code mt-2 text-3xl font-bold text-white">$35</div>
+            <div class="mt-3 h-px w-full bg-white/25"></div>
+            <p class="mt-3 text-xs text-white/75 leading-relaxed">Permanent key access. Instant HWID key delivery &amp; all future updates.</p>
+          </div>
+          <div class="mt-5 font-mono-code text-[11px] font-semibold uppercase tracking-wider text-white">Unlimited Access</div>
+        </div>
+      </div>
+
+      <div class="mt-8 w-full flex flex-col items-center">
+        <a
+          href="https://discord.gg/bDzjn6Yf7Q"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="group w-full sm:w-auto inline-flex items-center justify-center gap-3 rounded-lg border border-white bg-white px-8 py-4 text-sm sm:text-base font-bold text-black transition-colors duration-150 hover:bg-black hover:text-white active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black shadow-[0_0_30px_rgba(255,255,255,0.14)]"
+        >
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          </svg>
+          <span>Join Discord for Payment</span>
+          <span aria-hidden="true" class="inline-block transition-transform duration-150 group-hover:translate-x-0.5">→</span>
+        </a>
+      </div>
+    </section>
+
   </main>
 
-  <!-- Spacer to keep main content optically centered -->
-  <footer class="p-4 sm:p-6 text-center text-xs text-white/40">
-    <span class="sr-only">Black and white Discord invite page</span>
+  <footer class="px-6 pb-6 pt-2 text-center z-10">
+    <p class="font-mono-code text-xs text-white/40 tracking-wide">
+      TIMEBOMB BOT &bull; discord.gg/bDzjn6Yf7Q
+    </p>
   </footer>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, updateDoc, onSnapshot, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  <script>
+    (function () {
+      const canvas = document.getElementById("fx-canvas");
+      const ctx = canvas.getContext("2d");
+      const cursorHalo = document.getElementById("cursor-halo");
+      const bombTrigger = document.getElementById("bomb-trigger");
+      const bombEmoji = document.getElementById("bomb-emoji");
+      const copyBtn = document.getElementById("copy-invite-btn");
+      const copyLabel = document.getElementById("copy-invite-label");
+      const copyIcon = document.getElementById("copy-icon");
+      const checkIcon = document.getElementById("check-icon");
 
-    const countEl = document.getElementById("visit-count");
+      const tabOverviewBtn = document.getElementById("tab-overview");
+      const tabPricesBtn = document.getElementById("tab-prices");
+      const panelOverview = document.getElementById("panel-overview");
+      const panelPrices = document.getElementById("panel-prices");
 
-    /**
-     * Formats numbers cleanly with commas (e.g., 1,234).
-     */
-    function renderCount(value) {
-      if (!countEl) return;
-      const numeric = Number(value);
-      countEl.textContent = Number.isFinite(numeric) ? numeric.toLocaleString() : "0";
-    }
+      const INVITE_URL = "https://discord.gg/bDzjn6Yf7Q";
+      let activeTab = "overview";
 
-    /**
-     * Initializes and increments the site visit counter on every load/visit,
-     * including repeat visits from the same user, and listens for live updates.
-     */
-    async function initVisitCounter() {
-      const hasFirebaseConfig =
-        typeof __firebase_config !== "undefined" && Boolean(__firebase_config);
+      function switchTab(target) {
+        if (activeTab === target) return;
+        activeTab = target;
 
-      if (hasFirebaseConfig) {
-        try {
-          const firebaseConfig = JSON.parse(__firebase_config);
-          const appId = typeof __app_id !== "undefined" ? __app_id : "default-app-id";
-          const app = initializeApp(firebaseConfig);
-          const auth = getAuth(app);
-          const db = getFirestore(app);
+        const isOverview = target === "overview";
 
-          // Authenticate first before performing Firestore operations
-          if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
-            await signInWithCustomToken(auth, __initial_auth_token);
-          } else {
-            await signInAnonymously(auth);
-          }
+        tabOverviewBtn.setAttribute("aria-selected", String(isOverview));
+        tabPricesBtn.setAttribute("aria-selected", String(!isOverview));
 
-          if (!auth.currentUser) {
-            renderCount(1);
-            return;
-          }
+        if (isOverview) {
+          tabOverviewBtn.classList.remove("bg-transparent", "text-white/70", "hover:text-white");
+          tabOverviewBtn.classList.add("bg-white", "text-black");
 
-          const statsDocRef = doc(db, "artifacts", appId, "public", "data", "site_stats", "visits");
+          tabPricesBtn.classList.remove("bg-white", "text-black");
+          tabPricesBtn.classList.add("bg-transparent", "text-white/70", "hover:text-white");
 
-          // Subscribe to real-time updates with an error callback
-          onSnapshot(
-            statsDocRef,
-            (snapshot) => {
-              if (snapshot.exists()) {
-                renderCount(snapshot.data()?.total ?? 0);
-              }
-            },
-            (snapErr) => {
-              console.error("Error listening to visit counter:", snapErr);
-            }
-          );
+          panelPrices.classList.add("hidden");
+          panelPrices.classList.remove("flex");
 
-          // Atomically increment on every visit, even for repeat visitors
-          try {
-            await updateDoc(statsDocRef, { total: increment(1) });
-          } catch (updateErr) {
-            await setDoc(statsDocRef, { total: 1 }, { merge: true });
-          }
-          return;
-        } catch (err) {
-          console.error("Error updating visit counter:", err);
+          panelOverview.classList.remove("hidden");
+          panelOverview.classList.add("flex");
+          panelOverview.classList.remove("tab-panel-animate");
+          void panelOverview.offsetWidth;
+          panelOverview.classList.add("tab-panel-animate");
+        } else {
+          tabPricesBtn.classList.remove("bg-transparent", "text-white/70", "hover:text-white");
+          tabPricesBtn.classList.add("bg-white", "text-black");
+
+          tabOverviewBtn.classList.remove("bg-white", "text-black");
+          tabOverviewBtn.classList.add("bg-transparent", "text-white/70", "hover:text-white");
+
+          panelOverview.classList.add("hidden");
+          panelOverview.classList.remove("flex");
+
+          panelPrices.classList.remove("hidden");
+          panelPrices.classList.add("flex");
+          panelPrices.classList.remove("tab-panel-animate");
+          void panelPrices.offsetWidth;
+          panelPrices.classList.add("tab-panel-animate");
         }
       }
 
-      // Fallback counter for standalone preview without external config
-      try {
-        const memoryKey = "__bw_discord_site_visits__";
-        const current = Number(window[memoryKey] || 0) + 1;
-        window[memoryKey] = current;
-        renderCount(current);
-      } catch (fallbackErr) {
-        console.error("Fallback counter error:", fallbackErr);
-        renderCount(1);
-      }
-    }
+      tabOverviewBtn.addEventListener("click", () => switchTab("overview"));
+      tabPricesBtn.addEventListener("click", () => switchTab("prices"));
 
-    initVisitCounter();
+      let width = window.innerWidth;
+      let height = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+      const pointer = {
+        x: width / 2,
+        y: height / 2,
+        haloX: width / 2,
+        haloY: height / 2,
+        prevX: width / 2,
+        prevY: height / 2,
+        active: false
+      };
+
+      const sparks = [];
+      const shockwaves = [];
+
+      function resizeCanvas() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+
+      let copyTimeout = null;
+      copyBtn.addEventListener("click", () => {
+        const tempInput = document.createElement("input");
+        tempInput.value = INVITE_URL;
+        tempInput.style.position = "fixed";
+        tempInput.style.opacity = "0";
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        tempInput.setSelectionRange(0, 99999);
+
+        try {
+          document.execCommand("copy");
+        } catch (err) {
+          console.error("Copy failed:", err);
+        }
+        document.body.removeChild(tempInput);
+
+        copyLabel.textContent = "Copied!";
+        copyIcon.classList.add("hidden");
+        checkIcon.classList.remove("hidden");
+        copyBtn.classList.add("border-white", "bg-white/10");
+
+        if (copyTimeout) clearTimeout(copyTimeout);
+        copyTimeout = setTimeout(() => {
+          copyLabel.textContent = "Copy Invite";
+          copyIcon.classList.remove("hidden");
+          checkIcon.classList.add("hidden");
+          copyBtn.classList.remove("border-white", "bg-white/10");
+        }, 2000);
+      });
+
+      function spawnSparks(x, y, count = 2, speedScale = 1) {
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = (Math.random() * 1.8 + 0.4) * speedScale;
+          sparks.push({
+            x,
+            y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 0.35,
+            radius: Math.random() * 1.5 + 0.6,
+            alpha: Math.random() * 0.55 + 0.35,
+            decay: Math.random() * 0.025 + 0.018
+          });
+        }
+      }
+
+      function spawnShockwave(x, y, maxRadius = 260, lineWidth = 2) {
+        shockwaves.push({
+          x,
+          y,
+          radius: 8,
+          maxRadius,
+          alpha: 0.7,
+          lineWidth
+        });
+      }
+
+      function triggerDetonation(originX, originY) {
+        bombEmoji.classList.remove("bomb-shake");
+        void bombEmoji.offsetWidth;
+        bombEmoji.classList.add("bomb-shake");
+
+        spawnShockwave(originX, originY, 320, 2);
+        setTimeout(() => spawnShockwave(originX, originY, 210, 1), 70);
+        spawnSparks(originX, originY, 36, 3.2);
+      }
+
+      bombTrigger.addEventListener("click", () => {
+        const rect = bombTrigger.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        triggerDetonation(cx, cy);
+      });
+
+      window.addEventListener("pointerdown", (e) => {
+        pointer.active = true;
+        pointer.x = e.clientX;
+        pointer.y = e.clientY;
+        cursorHalo.classList.add("is-pressed");
+
+        if (!bombTrigger.contains(e.target)) {
+          spawnShockwave(e.clientX, e.clientY, 120, 1.2);
+          spawnSparks(e.clientX, e.clientY, 8, 1.5);
+        }
+      });
+
+      window.addEventListener("pointerup", () => {
+        cursorHalo.classList.remove("is-pressed");
+      });
+
+      window.addEventListener("pointermove", (e) => {
+        if (!pointer.active) {
+          pointer.haloX = e.clientX;
+          pointer.haloY = e.clientY;
+          pointer.prevX = e.clientX;
+          pointer.prevY = e.clientY;
+          pointer.active = true;
+          cursorHalo.style.opacity = "1";
+        }
+
+        pointer.x = e.clientX;
+        pointer.y = e.clientY;
+
+        const dx = pointer.x - pointer.prevX;
+        const dy = pointer.y - pointer.prevY;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > 5) {
+          spawnSparks(pointer.x, pointer.y, dist > 24 ? 2 : 1, 0.7);
+        }
+
+        pointer.prevX = pointer.x;
+        pointer.prevY = pointer.y;
+      });
+
+      document.addEventListener("mouseleave", () => {
+        pointer.active = false;
+        cursorHalo.style.opacity = "0";
+      });
+
+      document.addEventListener("mouseenter", () => {
+        pointer.active = true;
+        cursorHalo.style.opacity = "1";
+      });
+
+      function drawInteractiveGrid() {
+        const spacing = 40;
+        const baseAlpha = 0.14;
+        const maxLightDist = 230;
+
+        if (pointer.active) {
+          const glow = ctx.createRadialGradient(
+            pointer.haloX,
+            pointer.haloY,
+            0,
+            pointer.haloX,
+            pointer.haloY,
+            maxLightDist
+          );
+          glow.addColorStop(0, "rgba(255, 255, 255, 0.055)");
+          glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+          ctx.fillStyle = glow;
+          ctx.fillRect(0, 0, width, height);
+        }
+
+        const cols = Math.ceil(width / spacing);
+        const rows = Math.ceil(height / spacing);
+
+        for (let col = 0; col <= cols; col++) {
+          const gx = col * spacing;
+          for (let row = 0; row <= rows; row++) {
+            const gy = row * spacing;
+            let alpha = baseAlpha;
+            let radius = 1.1;
+
+            if (pointer.active) {
+              const d = Math.hypot(gx - pointer.haloX, gy - pointer.haloY);
+              if (d < maxLightDist) {
+                const boost = Math.pow(1 - d / maxLightDist, 2);
+                alpha += boost * 0.34;
+                radius += boost * 0.65;
+              }
+            }
+
+            ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(3)})`;
+            ctx.beginPath();
+            ctx.arc(gx, gy, radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      function animate() {
+        ctx.clearRect(0, 0, width, height);
+
+        const lerpFactor = 0.18;
+        pointer.haloX += (pointer.x - pointer.haloX) * lerpFactor;
+        pointer.haloY += (pointer.y - pointer.haloY) * lerpFactor;
+
+        cursorHalo.style.transform = `translate3d(${(pointer.haloX - 14).toFixed(2)}px, ${(pointer.haloY - 14).toFixed(2)}px, 0)`;
+
+        drawInteractiveGrid();
+
+        if (activeTab === "overview" && Math.random() < 0.18) {
+          const bombRect = bombEmoji.getBoundingClientRect();
+          if (bombRect.width > 0) {
+            spawnSparks(
+              bombRect.left + bombRect.width * 0.71,
+              bombRect.top + bombRect.height * 0.05,
+              1,
+              0.55
+            );
+          }
+        }
+
+        for (let i = shockwaves.length - 1; i >= 0; i--) {
+          const sw = shockwaves[i];
+          sw.radius += (sw.maxRadius - sw.radius) * 0.085 + 2;
+          sw.alpha *= 0.93;
+
+          if (sw.alpha <= 0.015) {
+            shockwaves.splice(i, 1);
+            continue;
+          }
+
+          ctx.strokeStyle = `rgba(255, 255, 255, ${sw.alpha.toFixed(3)})`;
+          ctx.lineWidth = sw.lineWidth;
+          ctx.beginPath();
+          ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          const p = sparks[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.97;
+          p.vy *= 0.97;
+          p.alpha -= p.decay;
+
+          if (p.alpha <= 0) {
+            sparks.splice(i, 1);
+            continue;
+          }
+
+          ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha.toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      window.onload = function () {
+        animate();
+      };
+    })();
   </script>
 </body>
 </html>
